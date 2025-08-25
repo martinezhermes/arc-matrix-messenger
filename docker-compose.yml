@@ -1,0 +1,13 @@
+services:
+  arc-matrix-messenger:
+    image: martinezhermes/arc-matrix-messenger:alpha-9
+    container_name: arc-matrix-messenger-ACH9001
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - arcnet
+
+networks:
+  arcnet:
+    driver: bridge
