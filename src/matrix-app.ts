@@ -27,6 +27,7 @@ import * as Olm from "@matrix-org/olm";
 import { formatDate } from "./utils";
 import { LocalStorage } from "node-localstorage";
 import { LocalStorageCryptoStore } from "matrix-js-sdk/lib/crypto/store/localStorage-crypto-store";
+import PersistentMemoryStore from "./store/persistent-store";
 /** Minimal fetch options used in Matrix bootstrap mode (avoid importing legacy fetcher) */
 type FetchOptions = Record<string, any>;
 import RabbitMQSubscriber from "./messaging/subscriber";
@@ -266,7 +267,7 @@ try {
 cli.print(`Creating Matrix client for ${config.matrixUserId} on ${config.matrixHomeserver}`);
 
 // Check if we have stored credentials
-const store = new MatrixMongoStore({
+const credStore = new MatrixMongoStore({
 mongoose,
 collectionNamePrefix: this.collectionNamePrefix
 });
@@ -274,14 +275,14 @@ collectionNamePrefix: this.collectionNamePrefix
 let accessToken = config.matrixAccessToken;
 let deviceId = config.matrixDeviceId;
 
-// Try to load from store if not in config
+// Try to load from credential store if not in config
 if (!accessToken || !deviceId) {
-const stored = await store.getStoredCredentials();
-if (stored) {
-accessToken = stored.accessToken;
-deviceId = stored.deviceId;
-cli.print("Using stored Matrix credentials");
-}
+  const stored = await credStore.getStoredCredentials();
+  if (stored) {
+    accessToken = stored.accessToken;
+    deviceId = stored.deviceId;
+    cli.print("Using stored Matrix credentials");
+  }
 }
 
 // If we don't have credentials, we need to login first to get them
@@ -308,11 +309,21 @@ accessToken = loginResponse.access_token;
 deviceId = loginResponse.device_id;
 
 /** Store credentials for future use */
-await store.storeCredentials(accessToken, deviceId);
+await credStore.storeCredentials(accessToken, deviceId);
 cli.print("Matrix login successful, credentials stored");
 }
 
 const cryptoStore = new LocalStorageCryptoStore(new LocalStorage(".matrix-crypto"));
+
+// Persistent sync store to avoid replay on restart (token-only persistence)
+let persistentStore: any;
+try {
+  persistentStore = new PersistentMemoryStore(new LocalStorage(".matrix-store"));
+  await persistentStore.startup();
+  cli.printLog("PersistentMemoryStore initialized for sync token.");
+} catch (e) {
+  cli.printError(`Failed to initialize persistent store; using in-memory: ${e}`);
+}
 
 /**
  * Secret Storage policy:
@@ -383,7 +394,7 @@ baseUrl: config.matrixHomeserver,
 userId: config.matrixUserId,
 accessToken: accessToken,
 deviceId: deviceId,
-store: store.getStore(),
+store: persistentStore,
 cryptoStore: cryptoStore,
 cryptoCallbacks
 });

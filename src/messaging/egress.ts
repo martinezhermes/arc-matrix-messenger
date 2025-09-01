@@ -19,12 +19,12 @@ export class EgressConsumer {
 
 // src/messaging/egress-consumer.ts (your EgressConsumer)
 async start(): Promise<void> {
-const wid = config.wid || config.appId || "default";
+const wid = config.wid || config.matrixUserId || config.appId || "default";
 const safeWid = String(wid).replace(/[^A-Za-z0-9._-]/g, "_");
-const rk = "egress.matrix.#";
-const qname = `matrix.egress.${safeWid}`;
+const rkPrimary = "egress.messenger.#";
+const qname = `messenger.egress.${safeWid}`;
 
-cli.print(`Binding Matrix egress: ex=${EX_EGRESS} rk=${rk} q=${qname}`);
+cli.print(`Binding messenger egress: ex=${EX_EGRESS} rk=${rkPrimary} q=${qname}`);
 
 const handler = async (msg: any) => {
 const rkIn = (msg.fields as any)?.routingKey || "";
@@ -48,18 +48,31 @@ cli.printError(`WARN egress: missing action in payload`);
 }
 };
 
-await this.publisher.consumeTopic(EX_EGRESS, rk, qname, handler);
-const rkCompat = "egress.whatsapp.#";
-cli.print(`Binding Matrix egress (compat): ex=${EX_EGRESS} rk=${rkCompat} q=${qname}`);
-await this.publisher.consumeTopic(EX_EGRESS, rkCompat, qname, handler);
+// Bind primary messenger topic
+await this.publisher.consumeTopic(EX_EGRESS, rkPrimary, qname, handler);
+
+// Backward-compat bindings
+const rkCompatMatrix = "egress.matrix.#";
+cli.print(`Binding messenger egress (compat-matrix): ex=${EX_EGRESS} rk=${rkCompatMatrix} q=${qname}`);
+await this.publisher.consumeTopic(EX_EGRESS, rkCompatMatrix, qname, handler);
+
+const rkCompatWhatsApp = "egress.whatsapp.#";
+cli.print(`Binding messenger egress (compat-whatsapp): ex=${EX_EGRESS} rk=${rkCompatWhatsApp} q=${qname}`);
+await this.publisher.consumeTopic(EX_EGRESS, rkCompatWhatsApp, qname, handler);
   
 // Add binding for Matrix user ID pattern (e.g., egress.@ach9.endurance.network)
 const matrixUserId = config.matrixUserId;
 if (matrixUserId) {
   // Remove @ and : from Matrix ID to create routing key pattern
-  const matrixUserPattern = `egress.${matrixUserId.replace(/:/g, '.')}`;
-  cli.print(`Binding Matrix egress (user): ex=${EX_EGRESS} rk=${matrixUserPattern} q=${qname}`);
-  await this.publisher.consumeTopic(EX_EGRESS, matrixUserPattern, qname, handler);
+  const userBase = matrixUserId.replace(/:/g, '.');
+  const patterns = [
+    `egress.${userBase}`,
+    `egress.messenger.${userBase}`
+  ];
+  for (const p of patterns) {
+    cli.print(`Binding messenger egress (user): ex=${EX_EGRESS} rk=${p} q=${qname}`);
+    await this.publisher.consumeTopic(EX_EGRESS, p, qname, handler);
+  }
 }
 
 cli.print(`Egress consumer is listening on queue ${qname}`);

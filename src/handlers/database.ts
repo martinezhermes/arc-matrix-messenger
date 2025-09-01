@@ -71,9 +71,12 @@ class Database {
 		const res = await reactionsCollection.updateOne(reactionQuery, reactionUpdate, { upsert: true });
 		const ns = `${this.dbName}.${reactionsCollection.collectionName}`;
 		const upserted = (res as any)?.upsertedId ? JSON.stringify((res as any).upsertedId) : "none";
-		cli.printLog(
-			`◇ Upsert reaction: ${paddedID} (msgId:${reaction.msgId._serialized}) → ${ns} (matched:${res.matchedCount}, modified:${res.modifiedCount}, upsertedId:${upserted})`
-		);
+		const shouldLog = Boolean((res as any)?.upsertedId) || res.modifiedCount > 0 || res.matchedCount === 0;
+		if (shouldLog) {
+			cli.printLog(
+				`◇ Upsert reaction: ${paddedID} (msgId:${reaction.msgId._serialized}) → ${ns} (matched:${res.matchedCount}, modified:${res.modifiedCount}, upsertedId:${upserted})`
+			);
+		}
 	}
 
 public async upsertMessage(enrichedMessage: any, messageCollection: Collection, fromEvent: string = "fetching_message") {
@@ -86,9 +89,12 @@ const truncatedID = enrichedMessage.id.id;
 		const ns = `${this.dbName}.${messageCollection.collectionName}`;
 		const truncatedBody = enrichedMessage.body?.substring(0, 50) || "[no body]";
 		const upserted = (res as any)?.upsertedId ? JSON.stringify((res as any).upsertedId) : "none";
-		cli.printLog(
-			`◇ Upsert from event ${fromEvent}: ${paddedID} | Message: ${truncatedBody} → ${ns} (matched:${res.matchedCount}, modified:${res.modifiedCount}, upsertedId:${upserted})`
-		);
+		const shouldLog = Boolean((res as any)?.upsertedId) || res.modifiedCount > 0 || res.matchedCount === 0;
+		if (shouldLog) {
+			cli.printLog(
+				`◇ Upsert from event ${fromEvent}: ${paddedID} | Message: ${truncatedBody} → ${ns} (matched:${res.matchedCount}, modified:${res.modifiedCount}, upsertedId:${upserted})`
+			);
+		}
 	}
 
 	public async upsertAck(ackDoc: any, ackCollection: Collection, fromEvent: string = "message_ack") {
@@ -99,9 +105,12 @@ const truncatedID = enrichedMessage.id.id;
 		const ns = `${this.dbName}.${ackCollection.collectionName}`;
 		const logBody = ackDoc.body?.substring(0, 50) || "[no body]";
 		const upserted = (res as any)?.upsertedId ? JSON.stringify((res as any).upsertedId) : "none";
-		cli.printLog(
-			`◇ Upsert ACK from event ${fromEvent}: ${ackDoc.messageId} | Ack: ${ackDoc.ackValue} | Sender: ${ackDoc.senderId} | Target: ${ackDoc.targetId} | Author: ${ackDoc.authorId || "[none]"} | Body: ${logBody} → ${ns} (matched:${res.matchedCount}, modified:${res.modifiedCount}, upsertedId:${upserted})`
-		);
+		const shouldLog = Boolean((res as any)?.upsertedId) || res.modifiedCount > 0 || res.matchedCount === 0;
+		if (shouldLog) {
+			cli.printLog(
+				`◇ Upsert ACK from event ${fromEvent}: ${ackDoc.messageId} | Ack: ${ackDoc.ackValue} | Sender: ${ackDoc.senderId} | Target: ${ackDoc.targetId} | Author: ${ackDoc.authorId || "[none]"} | Body: ${logBody} → ${ns} (matched:${res.matchedCount}, modified:${res.modifiedCount}, upsertedId:${upserted})`
+			);
+		}
 	}
 
 	public async reinitialize(): Promise<void> {

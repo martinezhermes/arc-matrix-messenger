@@ -65,44 +65,63 @@ this.database = database;
 	}
 
 	private buildMessageEvent(enriched: EnrichedMessage): ArcEvent {
-		return {
-			_id: enriched.serialId,
-			origin: `matrix:${enriched.from}`, // Change prefix from "whatsapp:" to "matrix:"
-			source: "matrix", // Change from "whatsapp" to "matrix"
-			signature: this.signatureFor(config.primaryDbMessages, "messages"),
-			sender: enriched.from,
-			author: enriched.author || enriched.from,
-			recipient: enriched.to,
-			content: { body: enriched.body, id: enriched.id, serialId: enriched.serialId },
-			type: "message",
-			appId: config.appId,
-			timestamp: enriched.timestamp,
-			topic: "_",
-			v: 1,
-			ackPolicy: "at-least-once",
-			ttlMs: 600000
-		};
-	}
+    const eventSeconds = Math.floor((enriched.timestamp || Date.now()) / 1000);
+    return {
+      _id: enriched.serialId,
+      origin: `messenger@${enriched.from}`,
+      source: "messenger",
+      signature: this.signatureFor(config.primaryDbMessages, "messages"),
+      sender: enriched.from,
+      author: enriched.author || enriched.from,
+      recipient: enriched.to,
+      content: {
+        // Canonical payload
+        body: enriched.body,
+        event_id: enriched.serialId,
+        event_ts: eventSeconds,
+        // Back-compat payload fields
+        id: enriched.id,
+        serialId: enriched.serialId
+      },
+      type: "message",
+      // Use the session identifier (WID if provided, else APP_ID) so central routes to the correct host
+      appId: this.sessionId(),
+      timestamp: eventSeconds,
+      topic: "_",
+      v: 1,
+      ackPolicy: "at-least-once",
+      ttlMs: 600000
+    };
+  }
 
 	private buildReactionEvent(reaction: EnrichedReaction, enrichedMsg: EnrichedMessage): ArcEvent {
-		return {
-			_id: reaction.msgId._serialized,
-			origin: `matrix:${enrichedMsg.from}`,
-			source: "matrix",
-			signature: this.signatureFor(config.primaryDbMessages, "reactions"),
-			sender: enrichedMsg.from,
-			author: enrichedMsg.author || enrichedMsg.from,
-			recipient: enrichedMsg.to,
-			content: { emoji: reaction.reaction, targetMessageId: reaction.msgId._serialized },
-			type: "reaction",
-			appId: config.appId,
-			timestamp: reaction.timestamp || enrichedMsg.timestamp,
-			topic: "_",
-			v: 1,
-			ackPolicy: "at-least-once",
-			ttlMs: 600000
-		};
-	}
+    const eventSeconds = Math.floor((reaction.timestamp || enrichedMsg.timestamp || Date.now()) / 1000);
+    return {
+      _id: reaction.msgId._serialized,
+      origin: `messenger@${enrichedMsg.from}`,
+      source: "messenger",
+      signature: this.signatureFor(config.primaryDbMessages, "reactions"),
+      sender: enrichedMsg.from,
+      author: enrichedMsg.author || enrichedMsg.from,
+      recipient: enrichedMsg.to,
+      content: {
+        // Canonical shape requirements
+        body: reaction.reaction,
+        event_id: reaction.id._serialized,
+        event_ts: eventSeconds,
+        // Reaction-specific fields
+        emoji: reaction.reaction,
+        targetMessageId: reaction.msgId._serialized
+      },
+      type: "reaction",
+      appId: this.sessionId(),
+      timestamp: eventSeconds,
+      topic: "_",
+      v: 1,
+      ackPolicy: "at-least-once",
+      ttlMs: 600000
+    };
+  }
 
 	// Standardized RabbitMQ publishing (same as WhatsApp)
 	private async publishEvent(ev: ArcEvent) {

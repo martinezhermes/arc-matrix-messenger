@@ -1,3 +1,16 @@
+This document has been archived. It described the legacy WhatsApp Web service and Go/WhatsApp-era architecture. The current implementation is a Matrix-based Node.js/TypeScript messenger. See:
+
+- docs/CURRENT_STATUS.md
+- docs/PHASE2_PLAN.md
+- docs/LOGGING.md
+- docs/MATRIX_SAS_VERIFICATION.md
+
+---
+
+Original contents preserved below.
+
+----
+
 # ARC WhatsApp Project Documentation
 
 ## Overview
@@ -247,3 +260,4 @@ WID=whatsapp_jid (optional)
 # 32 raw bytes, base64-encoded
 export MATRIX_RECOVERY_KEY_B64="BASE64_32_BYTE_VALUE"
 ```
+
