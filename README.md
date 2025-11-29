@@ -1,19 +1,13 @@
 # ARC Matrix Messenger
 
-ARC Matrix Messenger is a Node.js/TypeScript service that bridges a Matrix account to the ARC event loop using RabbitMQ and MongoDB. It ingests Matrix events (messages, reactions, receipts), persists/enriches them in MongoDB, and publishes standardized ARC ingress events to RabbitMQ. It also consumes ARC egress commands and executes them against Matrix (send, reply, react, edit, read receipts, fetch, typing, redact).
+ARC Matrix Messenger is a TypeScript service built on `matrix-js-sdk` that bridges a Matrix account into the ARC event loop over RabbitMQ and MongoDB. It listens to Matrix events (messages, reactions, receipts), enriches/persists them in MongoDB, and publishes standardized ARC ingress events. It also consumes ARC egress commands and executes them against Matrix (send, reply, react, edit, receipts, fetch, typing, redact), giving ARC a full Matrix surface.
 
-The project is the in-place successor to ARC’s original WhatsApp Web bridge: same architecture, topics, and database collections, now powered by Matrix. Phase 1 of the migration (core client replacement) is complete.
-
-
-**Origin & Purpose**
-- **Legacy origin:** A headless WhatsApp Web service that ran Puppeteer, upserted data to MongoDB, and published/consumed RabbitMQ topics. See `docs/README.md:1` for the prior architecture overview.
-- **Migration goal:** Replace WhatsApp with Matrix as a drop-in, preserving data shape, messaging patterns, entry points, and operational modes. See `docs/MATRIX_MIGRATION_PROPOSAL.md:1`.
-- **Current purpose:** Provide a production Matrix-based messenger with:
-  - Ingress event publishing to `arc.loop.ingress` (rk `ingress.matrix`)
+**Purpose**
+Provide a production-ready Matrix messenger for ARC with:
+  - Ingress publishing to `arc.loop.ingress` (rk `ingress.matrix`)
   - Egress command consumption from `arc.loop.egress` (rk `egress.matrix.#`, plus WhatsApp-compat bindings)
   - MongoDB upserts for `messages`, `contacts`, `acknowledgements`, `reactions`
-  - E2EE support (Olm/Megolm), SAS device verification workflow, and optional SSSS recovery-key import
-
+  - E2EE support (Olm/Megolm), SAS verification workflow, optional SSSS recovery-key import
 
 **Architecture**
 - **Matrix SDK client:** Handles sync, crypto, device verification, and event stream.
@@ -25,29 +19,26 @@ Key flows:
 - **Ingress (Matrix → ARC):** Message arrives → translated to standardized `ArcEvent` → published to `arc.loop.ingress` with `ingress.matrix` routing key.
 - **Egress (ARC → Matrix):** Command on `arc.loop.egress` with `egress.matrix.#` (and compat `egress.whatsapp.#`) → executed via Matrix actions.
 
-
 **What’s Implemented Now**
 - Matrix client initialization with crypto and device naming, using `matrix-js-sdk` and `@matrix-org/olm`.
 - Stored credentials and lightweight sync state backed by MongoDB.
 - Event handlers for messages, reactions, and read receipts (receipts/reactions persisted; publishing disabled for those by default).
 - Egress consumer that supports message, reply, react, edit, seen, typing, redact, and fetch_messages.
 - Logging gates: app logs via `LOG_LEVEL`, SDK logs via `MATRIX_SDK_LOG_LEVEL`.
-- Optional SSSS recovery key import (`MATRIX_RECOVERY_KEY_B64`) to restore cross-signing/backup secrets non-interactively.
+- Optional SSSS recovery key import (`MATRIX_USER_RECOVERY_KEY_B64`) to restore cross-signing/backup secrets non-interactively.
 
 
 **Repo Structure (key files)**
-- `src/matrix-app.ts:108`: Core app lifecycle (DB/RabbitMQ, Matrix client, crypto, handlers, SAS verification, startup/shutdown).
-- `src/index.ts:1`: Regular mode entry (service).
-- `src/bootstrap.ts:1`: Bootstrap entry (historical fetch mode; Matrix path stubs full backfill).
-- `src/debug_fetch.ts:1`: Debug fetch entry (targeted user/room inspection).
-- `src/handlers/matrix-events.ts:1`: Event translation, Mongo upserts, and ingress publishing.
-- `src/handlers/matrix-actions.ts:1`: Egress actions (send, reply, react, edit, read receipts, typing, redact, fetch).
-- `src/messaging/egress.ts:1`: Egress consumer bindings and dispatch.
-- `src/handlers/database.ts:1`: Mongo client, collections, and upsert helpers.
-- `src/config.ts:1`: Configuration surface and env mapping.
-- `docs/LOGGING.md:1`: Logging model and recommended verbosity.
-- `docs/MATRIX_SAS_VERIFICATION.md:1`: Stable SAS verification pattern and recovery-key notes.
-- `docs/PHASE1_COMPLETION.md:1`: Phase 1 status (complete) and file map.
+- `src/matrix-app.ts`: Core app lifecycle (DB/RabbitMQ, Matrix client, crypto, handlers, SAS verification, startup/shutdown).
+- `src/index.ts`: Regular mode entry (service).
+- `src/bootstrap.ts`: Bootstrap entry (historical fetch mode; Matrix path stubs full backfill).
+- `src/debug_fetch.ts`: Debug fetch entry (targeted user/room inspection).
+- `src/handlers/matrix-events.ts`: Event translation, Mongo upserts, ingress publishing.
+- `src/handlers/matrix-actions.ts`: Egress actions (send, reply, react, edit, read receipts, typing, redact, fetch).
+- `src/messaging/egress.ts`: Egress consumer bindings and dispatch.
+- `src/handlers/database.ts`: Mongo client, collections, and upsert helpers.
+- `src/config.ts`: Configuration surface and env mapping.
+- Docs: `docs/arc-event-spec.md` (current), archival docs under `docs/archive/`.
 
 
 **Data Model & Compatibility**
@@ -84,24 +75,21 @@ Key flows:
 - Docker (optional):
   - Use `docker-compose.yml` with an image built to include your `.env` setup.
 
-Note: `docs/INSTALL.md` contains a legacy Go build path; the current implementation is Node.js/TypeScript and runs via the scripts above.
-
-
 **Configuration**
 Set via environment or `.env`:
 - Core:
-  - `APP_MESSAGE_BROKER_URL`: AMQP URL for RabbitMQ
-  - `APP_DATABASE_URI`: MongoDB connection string (including DB name)
+  - `ARC_MESSAGE_BROKER_URL`: AMQP URL for RabbitMQ
+  - `ARC_DATABASE_URI`: MongoDB connection string (including DB name)
   - `DB_NAME`: Logical DB name used by the app
-  - `APP_USER`: Friendly username (used in prefixes/signatures)
-  - `APP_ID`: Stable instance identifier
+  - `ARC_USER`: Friendly username (used in prefixes/signatures)
+  - `ARC_USER_ID`: Stable instance identifier
 - Matrix:
   - `MATRIX_HOMESERVER`: e.g., `https://matrix.org`
   - `MATRIX_USER_ID`: full Matrix ID, e.g., `@user:server`
-  - `MATRIX_PASSWORD`: for first login; or use `MATRIX_ACCESS_TOKEN` + `MATRIX_DEVICE_ID`
-  - `MATRIX_DEVICE_NAME`: display name for this device
-  - `MATRIX_RECOVERY_KEY_B64` (optional): 32-byte base64 or Element-style recovery key string to enable SSSS import
-  - `MATRIX_INITIAL_SYNC_LIMIT` (optional): cap initial sync events (default 250)
+  - `MATRIX_USER_PASSWORD`: for first login; or use `MATRIX_ACCESS_TOKEN` + `MATRIX_DEVICE_ID`
+  - `MATRIX_CLIENT_DEVICE_NAME`: display name for this device
+  - `MATRIX_USER_RECOVERY_KEY_B64` (optional): 32-byte base64 or Element-style recovery key string to enable SSSS import
+  - `MATRIX_CLIENT_SYNC_LIMIT` (optional): cap initial sync events (default 250)
 - Logging:
   - `LOG_LEVEL`: app logs `silent|error|warn|info|debug` (default `info`)
   - `MATRIX_SDK_LOG_LEVEL`: SDK logs `silent|error|warn|info|debug` (default `error`)
@@ -114,7 +102,7 @@ Set via environment or `.env`:
 - Stable pattern: do not create local verifiers; accept inbound requests, bind to the SDK-provided verifier, and drive via `verifier.verify()`.
   - See `docs/MATRIX_SAS_VERIFICATION.md:1` for the full incident write-up and the verified binding sequence.
 - CLI: when emojis/decimals appear, type `y` then Enter to confirm; the app queues an early confirm if you type `y` before SAS is shown.
-- Optional: set `MATRIX_RECOVERY_KEY_B64` to allow automatic import of cross-signing/backup secrets after verification.
+- Optional: set `MATRIX_USER_RECOVERY_KEY_B64` to allow automatic import of cross-signing/backup secrets after verification.
 - The app periodically scans for undecryptable events and requests missing keys; see `src/matrix-app.ts:520`.
 
 

@@ -199,7 +199,7 @@ interface ArcEvent {
   recipient: string;       // Target JID
   content: any;            // Message content
   type: string;            // Event type
-  appId: string;           // Application ID
+  arcUserId: string;           // Application ID
   timestamp: number;       // Unix timestamp
   topic: string;           // Topic identifier
   v: number;               // Version
@@ -231,10 +231,10 @@ npm run debug-fetch
 ## Configuration Requirements
 Required environment variables:
 ```
-APP_MESSAGE_BROKER_URL=rabbitmq://user:pass@host:port
-APP_DATABASE_URI=mongodb://user:pass@host:port/db
-APP_USER=your_whatsapp_number
-APP_ID=unique_application_id
+ARC_MESSAGE_BROKER_URL=rabbitmq://user:pass@host:port
+ARC_DATABASE_URI=mongodb://user:pass@host:port/db
+ARC_USER=your_whatsapp_number
+ARC_USER_ID=unique_application_id
 WID=whatsapp_jid (optional)
 ```
 
@@ -248,7 +248,7 @@ WID=whatsapp_jid (optional)
 ## Matrix E2EE Verification
 
 - SAS verification incident and stable pattern: [docs/MATRIX_SAS_VERIFICATION.md](./MATRIX_SAS_VERIFICATION.md)
-- To allow automatic cross-signing/backup secret import during/after verification, set `MATRIX_RECOVERY_KEY_B64` to a 32-byte base64 value. If unset, the app runs in service mode and avoids SSSS prompts.
+- To allow automatic cross-signing/backup secret import during/after verification, set `MATRIX_USER_RECOVERY_KEY_B64` to a 32-byte base64 value. If unset, the app runs in service mode and avoids SSSS prompts.
 
 ### Quick Troubleshooting
 
@@ -258,6 +258,6 @@ WID=whatsapp_jid (optional)
 
 ```bash
 # 32 raw bytes, base64-encoded
-export MATRIX_RECOVERY_KEY_B64="BASE64_32_BYTE_VALUE"
+export MATRIX_USER_RECOVERY_KEY_B64="BASE64_32_BYTE_VALUE"
 ```
 
