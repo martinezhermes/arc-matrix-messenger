@@ -10,11 +10,11 @@ require('dotenv').config();
 
 console.log('🔍 Matrix Event Debug Script\n');
 
-if (!process.env.MATRIX_HOMESERVER || !process.env.MATRIX_USER_ID || !process.env.MATRIX_PASSWORD) {
+if (!process.env.MATRIX_HOMESERVER || !process.env.MATRIX_USER_ID || !process.env.MATRIX_USER_PASSWORD) {
   console.log('❌ Missing Matrix configuration. Please check your .env file has:');
   console.log('   MATRIX_HOMESERVER=...');
   console.log('   MATRIX_USER_ID=...');
-  console.log('   MATRIX_PASSWORD=...');
+  console.log('   MATRIX_USER_PASSWORD=...');
   process.exit(1);
 }
 
@@ -29,7 +29,7 @@ async function debugMatrixEvents() {
   try {
     await client.login("m.login.password", {
       user: process.env.MATRIX_USER_ID,
-      password: process.env.MATRIX_PASSWORD
+      password: process.env.MATRIX_USER_PASSWORD
     });
     console.log('✅ Matrix login successful');
   } catch (error) {

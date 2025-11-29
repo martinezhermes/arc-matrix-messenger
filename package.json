@@ -4,11 +4,12 @@
 	"description": "ARC - Matrix Messenger",
 	"main": "src/index.ts",
 	"author": "martinezhermes & Riddles & Illusions",
-	"scripts": {
-		"start": "npx vite-node src/index.ts",
-		"bootstrap": "npx vite-node src/bootstrap.ts",
-		"prettier": "prettier --write ./src"
-	},
+  "scripts": {
+    "start": "npx vite-node src/index.ts",
+    "bootstrap": "npx vite-node src/bootstrap.ts",
+    "prettier": "prettier --write ./src",
+    "test": "npx vite-node tests/run-tests.ts"
+  },
 	"license": "MIT",
 	"dependencies": {
 		"@matrix-org/olm": "^3.2.15",

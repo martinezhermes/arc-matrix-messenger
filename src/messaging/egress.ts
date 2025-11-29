@@ -19,8 +19,8 @@ export class EgressConsumer {
 
 // src/messaging/egress-consumer.ts (your EgressConsumer)
 async start(): Promise<void> {
-const wid = config.wid || config.matrixUserId || config.appId || "default";
-const safeWid = String(wid).replace(/[^A-Za-z0-9._-]/g, "_");
+const arcUserIdent = config.matrixUserId || config.arcUserId || "default";
+const safeWid = String(arcUserIdent).replace(/[^A-Za-z0-9._-]/g, "_");
 const rkPrimary = "egress.messenger.#";
 const qname = `messenger.egress.${safeWid}`;
 
@@ -51,28 +51,13 @@ cli.printError(`WARN egress: missing action in payload`);
 // Bind primary messenger topic
 await this.publisher.consumeTopic(EX_EGRESS, rkPrimary, qname, handler);
 
-// Backward-compat bindings
-const rkCompatMatrix = "egress.matrix.#";
-cli.print(`Binding messenger egress (compat-matrix): ex=${EX_EGRESS} rk=${rkCompatMatrix} q=${qname}`);
-await this.publisher.consumeTopic(EX_EGRESS, rkCompatMatrix, qname, handler);
-
-const rkCompatWhatsApp = "egress.whatsapp.#";
-cli.print(`Binding messenger egress (compat-whatsapp): ex=${EX_EGRESS} rk=${rkCompatWhatsApp} q=${qname}`);
-await this.publisher.consumeTopic(EX_EGRESS, rkCompatWhatsApp, qname, handler);
-  
-// Add binding for Matrix user ID pattern (e.g., egress.@ach9.endurance.network)
+// Per-user binding under unified messenger namespace
 const matrixUserId = config.matrixUserId;
 if (matrixUserId) {
-  // Remove @ and : from Matrix ID to create routing key pattern
-  const userBase = matrixUserId.replace(/:/g, '.');
-  const patterns = [
-    `egress.${userBase}`,
-    `egress.messenger.${userBase}`
-  ];
-  for (const p of patterns) {
-    cli.print(`Binding messenger egress (user): ex=${EX_EGRESS} rk=${p} q=${qname}`);
-    await this.publisher.consumeTopic(EX_EGRESS, p, qname, handler);
-  }
+  const userBase = matrixUserId.replace(/@/g, '').replace(/:/g, '.');
+  const p = `egress.messenger.${userBase}`;
+  cli.print(`Binding messenger egress (user): ex=${EX_EGRESS} rk=${p} q=${qname}`);
+  await this.publisher.consumeTopic(EX_EGRESS, p, qname, handler);
 }
 
 cli.print(`Egress consumer is listening on queue ${qname}`);

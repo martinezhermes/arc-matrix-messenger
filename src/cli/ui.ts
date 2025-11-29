@@ -1,6 +1,24 @@
 import color from "picocolors";
 import config from "../config";
 
+const ANSI_RE = /\x1B\[[0-9;]*m/g;
+function hasVisibleDiamond(s: string): boolean {
+  try {
+    const visible = String(s || "").replace(ANSI_RE, "");
+    return /^\s*◇/.test(visible);
+  } catch {
+    return false;
+  }
+}
+function stripVisibleDiamond(s: string): string {
+  try {
+    const visible = String(s || "").replace(ANSI_RE, "");
+    return visible.replace(/^\s*◇\s*/, "");
+  } catch {
+    return s;
+  }
+}
+
  // Read version from package.json
 const { version } = require("../../package.json");
 
@@ -13,23 +31,27 @@ function isEnabled(level: Level): boolean {
 }
 
 export const print = (text: string) => {
-if (!isEnabled("info")) return;
-console.log(color.green("◇") + "  " + text);
+  if (!isEnabled("info")) return;
+  const body = hasVisibleDiamond(text) ? stripVisibleDiamond(text) : text;
+  console.log(color.green("◇") + "  " + body);
 };
 
 export const printLog = (text: string) => {
-if (!isEnabled("debug")) return;
-console.log(color.blue("◇") + "  " + text);
+  if (!isEnabled("debug")) return;
+  const body = hasVisibleDiamond(text) ? stripVisibleDiamond(text) : text;
+  console.log(color.blue("◇") + "  " + body);
 };
 
 export const printError = (text: string) => {
-if (!isEnabled("error")) return;
-console.log(color.red("◇") + "  " + text);
+  if (!isEnabled("error")) return;
+  const body = hasVisibleDiamond(text) ? stripVisibleDiamond(text) : text;
+  console.log(color.red("◇") + "  " + body);
 };
 
 export const printWarning = (text: string) => {
-if (!isEnabled("warn")) return;
-console.log(color.yellow("◇") + "  " + text);
+  if (!isEnabled("warn")) return;
+  const body = hasVisibleDiamond(text) ? stripVisibleDiamond(text) : text;
+  console.log(color.yellow("◇") + "  " + body);
 };
 
 export const printIntro = () => {

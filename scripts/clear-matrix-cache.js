@@ -23,9 +23,9 @@ async function clearCache() {
 
   // 2. Clear MongoDB credentials
   try {
-    const databaseUri = process.env.APP_DATABASE_URI;
+    const databaseUri = process.env.ARC_DATABASE_URI;
     if (!databaseUri) {
-      console.log("⚠️  No APP_DATABASE_URI found, skipping MongoDB cache clear");
+      console.log("⚠️  No ARC_DATABASE_URI found, skipping MongoDB cache clear");
       return;
     }
 
@@ -40,7 +40,7 @@ async function clearCache() {
     console.log("✅ Connected to MongoDB");
 
     // Get collection name prefix
-    const appUser = process.env.APP_USER || "ach9";
+    const appUser = process.env.ARC_USER || "ach9";
     const collectionPrefix = process.env.COLLECTION_NAME_PREFIX || `${appUser.toLowerCase()}MatrixSession`;
     
     console.log(`📦 Using collection prefix: ${collectionPrefix}`);

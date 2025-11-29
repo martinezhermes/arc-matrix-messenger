@@ -35,10 +35,10 @@ console.log('\n2. Checking Configuration...');
 try {
   require('dotenv').config();
   const requiredEnvVars = [
-    'APP_MESSAGE_BROKER_URL',
-    'APP_DATABASE_URI',
-    'APP_USER',
-    'APP_ID'
+    'ARC_MESSAGE_BROKER_URL',
+    'ARC_DATABASE_URI',
+    'ARC_USER',
+    'ARC_USER_ID'
   ];
 
   const matrixEnvVars = [

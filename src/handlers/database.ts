@@ -8,7 +8,8 @@ enum CollectionName {
 	Messages = "messages",
 	Contacts = "contacts",
 	Acknowledgements = "acknowledgements",
-	Reactions = "reactions"
+	Reactions = "reactions",
+  Events = "events"
 }
 
 class Database {
@@ -112,6 +113,126 @@ const truncatedID = enrichedMessage.id.id;
 			);
 		}
 	}
+
+  // Canonical Messenger Event insert (append-only for now)
+  public async insertCanonicalEvent(event: any, eventsCollection: Collection) {
+    try {
+      const now = Date.now();
+      const filter: any = {};
+      if (event?.eventId && typeof event.eventId === 'string') {
+        filter.source = event.source;
+        filter.arcUserId = event.arcUserId;
+        filter.eventId = event.eventId;
+      } else if (event?.type === 'receipt') {
+        filter.source = event.source;
+        filter.arcUserId = event.arcUserId;
+        filter.type = 'receipt';
+        filter.roomId = event.roomId;
+        filter.senderId = event.senderId;
+        if (event?.relatesTo?.eventId) filter['relatesTo.eventId'] = event.relatesTo.eventId;
+      } else {
+        // Fallback (rare): use a composite that should remain stable
+        filter.source = event.source;
+        filter.arcUserId = event.arcUserId;
+        filter.type = event.type;
+        filter.roomId = event.roomId;
+        filter.senderId = event.senderId;
+        filter.timestamp = event.timestamp;
+      }
+
+      const update = {
+        $setOnInsert: { ingestedAt: now, ingestedAtDate: new Date(now) },
+        $set: { ...event, updatedAt: now }
+      };
+
+      await eventsCollection.updateOne(filter, update, { upsert: true });
+      const ns = `${this.dbName}.${eventsCollection.collectionName}`;
+      const eType = String(event?.type || 'unknown');
+      let logId = String(event?.eventId || 'n/a');
+      if (eType === 'receipt' && event?.relatesTo?.eventId) {
+        logId = `n/a (target: ${event.relatesTo.eventId})`;
+      }
+      cli.printLog(`◇ Upsert CME: type=${eType} eventId=${logId} → ${ns}`);
+    } catch (error) {
+      cli.printError(`[Error upserting CME] ${error}`);
+    }
+  }
+
+  // Backfill checkpoint helpers
+  public async getBackfillState(arcUserId: string, roomId: string): Promise<{ lastTs?: number } | null> {
+    const db = await this.connect();
+    const col = db.collection("backfill_state");
+    const doc = await col.findOne({ arcUserId, roomId } as any);
+    return (doc as any) || null;
+  }
+
+  public async upsertBackfillState(arcUserId: string, roomId: string, lastTs: number): Promise<void> {
+    const db = await this.connect();
+    const col = db.collection("backfill_state");
+    await col.updateOne(
+      { arcUserId, roomId } as any,
+      { $set: { arcUserId, roomId, lastTs, updatedAt: new Date() } },
+      { upsert: true }
+    );
+  }
+
+  public async ensureEventsIndexes(options?: { ttlReceiptsDays?: number; ttlTypingDays?: number }): Promise<void> {
+    try {
+      const db = await this.connect();
+      const col = db.collection("events");
+
+      // Drop legacy indexes if exist (appId -> arcUserId migration)
+      const legacyIndexes = ["uniq_event", "room_timeline", "sender_timeline", "rel_event", "type_time", "uniq_receipt"];
+      for (const indexName of legacyIndexes) {
+        try {
+          await col.dropIndex(indexName);
+          cli.printLog(`◇ Dropped legacy ${indexName} index (appId-based)`);
+        } catch (dropErr) {
+          if ((dropErr as any).codeName !== "IndexNotFound") {
+            cli.printWarning(`[events:index] Drop ${indexName} failed: ${dropErr}`);
+          }
+        }
+      }
+
+      await col.createIndex(
+        { source: 1, arcUserId: 1, eventId: 1 },
+        { name: "uniq_event", unique: true, partialFilterExpression: { eventId: { $type: "string" } } }
+      );
+      await col.createIndex({ arcUserId: 1, roomId: 1, timestamp: 1, _id: 1 }, { name: "room_timeline" });
+      await col.createIndex({ arcUserId: 1, senderId: 1, timestamp: 1 }, { name: "sender_timeline" });
+      await col.createIndex({ arcUserId: 1, "relatesTo.eventId": 1, timestamp: 1 }, { name: "rel_event" });
+      await col.createIndex({ arcUserId: 1, type: 1, timestamp: 1 }, { name: "type_time" });
+      await col.createIndex(
+        { source: 1, arcUserId: 1, type: 1, roomId: 1, senderId: 1, "relatesTo.eventId": 1 },
+        { name: "uniq_receipt", unique: true, partialFilterExpression: { type: "receipt" } }
+      );
+
+      if (options?.ttlReceiptsDays && options.ttlReceiptsDays > 0) {
+        await col.createIndex(
+          { ingestedAtDate: 1 },
+          {
+            name: "ttl_receipts",
+            expireAfterSeconds: Math.floor(options.ttlReceiptsDays * 24 * 60 * 60),
+            partialFilterExpression: { type: "receipt" }
+          }
+        );
+      }
+      if (options?.ttlTypingDays && options.ttlTypingDays > 0) {
+        await col.createIndex(
+          { ingestedAtDate: 1 },
+          {
+            name: "ttl_typing",
+            expireAfterSeconds: Math.floor(options.ttlTypingDays * 24 * 60 * 60),
+            partialFilterExpression: { type: "typing" }
+          }
+        );
+      }
+
+      cli.printLog("◇ Ensured indexes on events collection");
+    } catch (e) {
+      cli.printError(`[events:index] ${e}`);
+    }
+  }
 
 	public async reinitialize(): Promise<void> {
 		const collectionsToReset = ["contacts", "messages", "reactions", "metadata"];

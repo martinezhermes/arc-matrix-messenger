@@ -30,11 +30,10 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
-    // Legacy WhatsApp implementation (excluded from Matrix build)
+    // Legacy WhatsApp implementation (removed in Phase 2)
     "src/app.ts",
     "src/handlers/actions.ts",
     "src/handlers/events.ts",
-    "src/handlers/fetcher.ts",
     "src/handlers/mongo_store.ts"
   ]
 }

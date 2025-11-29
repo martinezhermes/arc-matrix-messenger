@@ -24,8 +24,8 @@ const readline = require('readline');
   const config = {
     homeserver: process.env.MATRIX_HOMESERVER || 'https://matrix.endurance.network',
     userId: process.env.MATRIX_USER_ID || '@ach9:endurance.network',
-    password: process.env.MATRIX_PASSWORD,
-    deviceName: process.env.MATRIX_DEVICE_NAME || 'Test Verification Device'
+    password: process.env.MATRIX_USER_PASSWORD,
+    deviceName: process.env.MATRIX_CLIENT_DEVICE_NAME || 'Test Verification Device'
   };
   
   console.log(`Creating client for ${config.userId} on ${config.homeserver}`);

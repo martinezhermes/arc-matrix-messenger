@@ -10,15 +10,15 @@ app.start().catch((error) => {
 	process.exit(1);
 });
 
-// Graceful shutdown handling
-process.on("SIGINT", async () => {
+let shuttingDown = false;
+const handleShutdown = async () => {
+	if (shuttingDown) return;
+	shuttingDown = true;
 	cli.print("Shutting down gracefully...");
 	await app.shutdown();
 	process.exit(0);
-});
+};
 
-process.on("SIGTERM", async () => {
-	cli.print("Shutting down gracefully...");
-	await app.shutdown();
-	process.exit(0);
-});
+// Graceful shutdown handling
+process.once("SIGINT", handleShutdown);
+process.once("SIGTERM", handleShutdown);
